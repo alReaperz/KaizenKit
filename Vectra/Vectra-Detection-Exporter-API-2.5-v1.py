@@ -8,6 +8,7 @@ from tkinter import messagebox
 import pandas as pd
 import json
 import sys
+import webbrowser  # Used to open the URL
 
 # Global variable to store the output filename
 stored_filename = None
@@ -49,33 +50,34 @@ def flatten_json(json_object, keys_to_include):
                     for i, element in enumerate(value):
                         flat_data[f"{key}_{i+1}"] = element
                 else:
-                    flat_data[key] = ", ".join(map(str, value))  # Join arrays as a string
+                    flat_data[key] = ", ".join(map(str, value))
             else:
                 flat_data[key] = value if value not in (None, "") else "N/A"
         except (KeyError, TypeError):
-            flat_data[key] = "N/A"  # Default placeholder for missing keys or errors
+            flat_data[key] = "N/A"
     return flat_data
 
 # Run query and process data
 def run_query():
     global stored_filename  # Use the global stored_filename variable
+
+    # First, get user inputs from the GUI
+    vectra_server = vectra_server_entry.get().strip()
+    api_key = api_key_entry.get().strip()
+    start_time = start_time_entry.get().strip()
+    end_time = end_time_entry.get().strip()
+
+    # Validate inputs BEFORE updating the status
+    if not vectra_server or not api_key or not start_time or not end_time:
+        messagebox.showerror("Input Error", "All fields are required!")
+        return
+
+    # If inputs are valid, disable the button and update the status message
+    submit_button.config(state=tk.DISABLED)
+    status_label.config(text="Processing request... Please wait.", fg="blue")
+    root.update()
+
     try:
-        # Disable the submit button to prevent multiple submissions
-        submit_button.config(state=tk.DISABLED)
-        status_label.config(text="Processing request... Please wait.", fg="blue")
-        root.update()
-
-        # Get user inputs from the GUI
-        vectra_server = vectra_server_entry.get().strip()
-        api_key = api_key_entry.get().strip()
-        start_time = start_time_entry.get().strip()
-        end_time = end_time_entry.get().strip()
-
-        # Validate inputs
-        if not vectra_server or not api_key or not start_time or not end_time:
-            messagebox.showerror("Input Error", "All fields are required!")
-            return
-
         # Convert user-provided date and time (GMT+8) to UTC
         local_tz = timezone("Asia/Kuala_Lumpur")
         start_time_utc = local_tz.localize(datetime.strptime(start_time, "%Y-%m-%d %H:%M")).astimezone(timezone("UTC")).strftime("%Y-%m-%dT%H%M")
@@ -88,7 +90,6 @@ def run_query():
         # Create a requests session using the SystemCertAdapter
         with requests.Session() as session:
             session.mount("https://", SystemCertAdapter())
-
             # Send the GET request
             response = session.get(url, headers=headers)
             response.raise_for_status()  # Raise an error for HTTP codes >= 400
@@ -142,9 +143,7 @@ def flatten_json_to_excel():
             return
 
         # Flatten the JSON data
-        flattened_data = [
-            flatten_json(item, flatten_keys) for item in data["results"]
-        ]
+        flattened_data = [flatten_json(item, flatten_keys) for item in data["results"]]
 
         # Convert to DataFrame
         df = pd.DataFrame(flattened_data)
@@ -165,38 +164,51 @@ def flatten_json_to_excel():
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred while converting to Excel:\n{e}")
 
+# Function to open the URL when clicking on the info label
+def open_url(event=None):
+    url = "https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Search-Detection-v1.py"
+    webbrowser.open(url)
+
 # GUI Setup
 root = tk.Tk()
-root.title("Vectra Detection Exporter API 2.5 by alReaperz")
+root.title("Vectra Detection Exporter API 2.5 v1 by alReaperz")
 
-# Create input fields and labels
-tk.Label(root, text="Vectra Brain Hostname:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
-vectra_server_entry = tk.Entry(root, width=50)
+# Create a frame for the main content (inputs and buttons)
+content_frame = tk.Frame(root)
+content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+tk.Label(content_frame, text="Vectra Brain FQDN:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
+vectra_server_entry = tk.Entry(content_frame, width=50)
 vectra_server_entry.grid(row=0, column=1, padx=10, pady=5)
 
-tk.Label(root, text="API Token:").grid(row=1, column=0, sticky="w", padx=10, pady=5)
-api_key_entry = tk.Entry(root, show="*", width=50)
+tk.Label(content_frame, text="API Token:").grid(row=1, column=0, sticky="w", padx=10, pady=5)
+api_key_entry = tk.Entry(content_frame, show="*", width=50)
 api_key_entry.grid(row=1, column=1, padx=10, pady=5)
 
-tk.Label(root, text="Start Time (YYYY-MM-DD HH:MM):").grid(row=2, column=0, sticky="w", padx=10, pady=5)
-start_time_entry = tk.Entry(root, width=50)
+tk.Label(content_frame, text="Start Time (YYYY-MM-DD HH:MM):").grid(row=2, column=0, sticky="w", padx=10, pady=5)
+start_time_entry = tk.Entry(content_frame, width=50)
 start_time_entry.grid(row=2, column=1, padx=10, pady=5)
 
-tk.Label(root, text="End Time (YYYY-MM-DD HH:MM):").grid(row=3, column=0, sticky="w", padx=10, pady=5)
-end_time_entry = tk.Entry(root, width=50)
+tk.Label(content_frame, text="End Time (YYYY-MM-DD HH:MM):").grid(row=3, column=0, sticky="w", padx=10, pady=5)
+end_time_entry = tk.Entry(content_frame, width=50)
 end_time_entry.grid(row=3, column=1, padx=10, pady=5)
 
 # Add submit button
-submit_button = tk.Button(root, text="Run Query", command=run_query)
+submit_button = tk.Button(content_frame, text="Run Query", command=run_query)
 submit_button.grid(row=4, column=0, columnspan=2, pady=10)
 
 # Add a button for flattening the JSON to Excel
-flatten_button = tk.Button(root, text="Flatten to Excel", command=flatten_json_to_excel)
+flatten_button = tk.Button(content_frame, text="Flatten to Excel", command=flatten_json_to_excel)
 flatten_button.grid(row=5, column=0, columnspan=2, pady=10)
 
 # Add a status label to display processing status
-status_label = tk.Label(root, text="Waiting for input...", fg="black")
+status_label = tk.Label(content_frame, text="Waiting for input...", fg="black")
 status_label.grid(row=6, column=0, columnspan=2, pady=10)
+
+# Create a clickable info label in the bottom-right corner of the window
+info_label = tk.Label(root, text="?", fg="blue", cursor="hand2", font=("Arial", 12, "bold"))
+info_label.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
+info_label.bind("<Button-1>", open_url)
 
 # Start the GUI event loop
 root.mainloop()
