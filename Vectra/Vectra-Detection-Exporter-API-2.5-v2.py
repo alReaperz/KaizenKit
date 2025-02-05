@@ -186,7 +186,7 @@ def flatten_json_to_excel():
 
 # Function to open the URL when clicking on the info label
 def open_url(event=None):
-    url = "https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Search-Detection-v1.py"
+    url = "https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Search-Detection-v2.py"
     webbrowser.open(url)
 
 # GUI Setup
