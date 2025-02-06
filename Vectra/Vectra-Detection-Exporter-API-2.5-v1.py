@@ -7,7 +7,6 @@ import tkinter as tk
 from tkinter import messagebox
 import pandas as pd
 import json
-import sys
 import webbrowser  # Used to open the URL
 
 # Global variable to store the output filename
@@ -18,35 +17,68 @@ class SystemCertAdapter(requests.adapters.HTTPAdapter):
     def __init__(self, *args, **kwargs):
         self.ssl_context = ssl.create_default_context()
         super().__init__(*args, **kwargs)
-
     def init_poolmanager(self, *args, **kwargs):
         kwargs["ssl_context"] = self.ssl_context
         return super().init_poolmanager(*args, **kwargs)
 
-# Define keys to flatten
+# ---------------------------------------------------------------------------
+# Variables for controlling expansion behavior:
+#
+# List of keys that will be handled with special logic (dynamic/static sorting)
+# special_expand_keys = ["tags", "comments"]
+special_expand_keys = ["tags"]
+
+# For each key in special_expand_keys, define a set of values (normalized to lowercase)
+# that should be treated as "static" and always appear at the end.
+special_static_values = {
+    "tags": {"false positive", "true positive", ""},
+    #"comments": {"escalated", ""}  # Add other static values for "comments" as needed.
+}
+
+# Keys in this list will be simply expanded (without special sorting)
+expand_arrays = []  # (You can add other keys here if needed.)
+# ---------------------------------------------------------------------------
+
+# Define keys to flatten (for all keys in the JSON that we want)
 flatten_keys = [
     "id", "state", "threat", "certainty", "detection_category", "detection_type",
     "created_timestamp", "first_timestamp", "last_timestamp", "src_ip", "src_host.id",
-    "src_host.ip", "src_host.name", "src_account", "src_host.is_key_asset", "targets_key_asset",
-    "is_triaged", "custom_detection", "triage_rule_id", "filtered_by_ai", "filtered_by_user",
-    "filtered_by_rule", "tags"
-]
-
-# Define which arrays to expand into columns
-expand_arrays = ["tags"]
+    "src_host.ip", "src_host.name", "src_account.id", "src_account.name", "src_host.is_key_asset",
+    "targets_key_asset", "is_triaged", "custom_detection", "triage_rule_id", "filtered_by_ai",
+    "filtered_by_user", "filtered_by_rule"
+] + special_expand_keys  # Add our special keys to the list
 
 # Function to flatten JSON data
 def flatten_json(json_object, keys_to_include):
     flat_data = {}
     for key in keys_to_include:
+        # Process nested keys (dot notation)
         parts = key.split(".")
         value = json_object
         try:
             for part in parts:
                 value = value[part] if isinstance(value, dict) else None
-            # Handle arrays
-            if isinstance(value, list):
-                if key in expand_arrays:  # Expand arrays into separate columns
+            # Special handling for keys in special_expand_keys
+            if key in special_expand_keys:
+                if isinstance(value, list):
+                    # Get the static set for this key (default to empty set if not defined)
+                    static_values = special_static_values.get(key, set())
+                    dynamic_items = []
+                    static_items = []
+                    for item in value:
+                        # Normalize item (as a string) for comparison
+                        norm = str(item).strip().lower()
+                        if norm in static_values:
+                            static_items.append(item)
+                        else:
+                            dynamic_items.append(item)
+                    # Save the combined sorted list (dynamic first, then static)
+                    flat_data[f"sorted_{key}"] = dynamic_items + static_items
+                else:
+                    flat_data[f"sorted_{key}"] = []
+            # For keys that are in the regular expand_arrays list
+            elif isinstance(value, list):
+                if key in expand_arrays:
                     for i, element in enumerate(value):
                         flat_data[f"{key}_{i+1}"] = element
                 else:
@@ -61,57 +93,53 @@ def flatten_json(json_object, keys_to_include):
 def run_query():
     global stored_filename  # Use the global stored_filename variable
 
-    # First, get user inputs from the GUI
+    # Get user inputs from the GUI
     vectra_server = vectra_server_entry.get().strip()
     api_key = api_key_entry.get().strip()
     start_time = start_time_entry.get().strip()
     end_time = end_time_entry.get().strip()
 
-    # Validate inputs BEFORE updating the status
+    # Validate inputs BEFORE updating status message
     if not vectra_server or not api_key or not start_time or not end_time:
         messagebox.showerror("Input Error", "All fields are required!")
         return
 
-    # If inputs are valid, disable the button and update the status message
+    # Inputs are valid – update status and disable the button
     submit_button.config(state=tk.DISABLED)
     status_label.config(text="Processing request... Please wait.", fg="blue")
     root.update()
 
     try:
-        # Convert user-provided date and time (GMT+8) to UTC
+        # Convert local (GMT+8) time to UTC
         local_tz = timezone("Asia/Kuala_Lumpur")
-        start_time_utc = local_tz.localize(datetime.strptime(start_time, "%Y-%m-%d %H:%M")).astimezone(timezone("UTC")).strftime("%Y-%m-%dT%H%M")
-        end_time_utc = local_tz.localize(datetime.strptime(end_time, "%Y-%m-%d %H:%M")).astimezone(timezone("UTC")).strftime("%Y-%m-%dT%H%M")
+        start_time_utc = local_tz.localize(datetime.strptime(start_time, "%Y-%m-%d %H:%M"))\
+                                 .astimezone(timezone("UTC")).strftime("%Y-%m-%dT%H%M")
+        end_time_utc = local_tz.localize(datetime.strptime(end_time, "%Y-%m-%d %H:%M"))\
+                               .astimezone(timezone("UTC")).strftime("%Y-%m-%dT%H%M")
 
         # Build the URL and headers
         url = f"https://{vectra_server}/api/v2.5/search/detections/?page_size=5000&query_string=detection.first_timestamp%3A%5B{start_time_utc}%20TO%20{end_time_utc}%5D"
         headers = {"Authorization": f"Token {api_key}"}
 
-        # Create a requests session using the SystemCertAdapter
+        # Make the API call
         with requests.Session() as session:
             session.mount("https://", SystemCertAdapter())
-            # Send the GET request
             response = session.get(url, headers=headers)
-            response.raise_for_status()  # Raise an error for HTTP codes >= 400
+            response.raise_for_status()  # Raise error for HTTP codes >= 400
 
-        # Save the output to the Downloads folder with a unique filename
+        # Save JSON output to the Downloads folder with a unique filename
         downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
         file_name = f"detections_{start_time}_{end_time}.json".replace(" ", "T").replace(":", "").replace("-", "")
         counter = 1
         output_path = os.path.join(downloads_folder, file_name)
-
-        # Check if the file already exists, and increment the suffix if needed
         while os.path.exists(output_path):
             output_path = os.path.join(downloads_folder, f"{file_name.split('.')[0]}_{counter}.json")
             counter += 1
 
-        # Store the output filename in the global variable
         stored_filename = output_path
-
         with open(output_path, "w") as output_file:
             output_file.write(response.text)
 
-        # Notify the user of success
         messagebox.showinfo("Success", f"Data saved to: {output_path}")
         status_label.config(text=f"File saved: {output_path}", fg="green")
 
@@ -122,10 +150,9 @@ def run_query():
         messagebox.showerror("Error", f"An unexpected error occurred:\n{e}")
         status_label.config(text="An error occurred.", fg="red")
     finally:
-        # Re-enable the submit button after the request is processed
         submit_button.config(state=tk.NORMAL)
 
-# Flatten the JSON to Excel
+# Flatten the JSON to Excel with fixed columns for special keys
 def flatten_json_to_excel():
     global stored_filename  # Access the global stored_filename variable
     try:
@@ -137,43 +164,68 @@ def flatten_json_to_excel():
         with open(stored_filename, "r") as json_file:
             data = json.load(json_file)
 
-        # Process the "results" array in JSON
+        # Check that "results" exists and is a list
         if "results" not in data or not isinstance(data["results"], list):
             messagebox.showerror("Error", "No 'results' array found in the JSON file.")
             return
 
-        # Flatten the JSON data
+        # Flatten each detection record
         flattened_data = [flatten_json(item, flatten_keys) for item in data["results"]]
 
-        # Convert to DataFrame
-        df = pd.DataFrame(flattened_data)
+        # --- Post-process each special key to create fixed columns ---
+        for special_key in special_expand_keys:
+            # Get the static set for this key (using the dictionary)
+            static_set = special_static_values.get(special_key, set())
+            max_dynamic = 0
+            max_static = 0
+            for record in flattened_data:
+                sorted_list = record.get(f"sorted_{special_key}", [])
+                # Separate the list into dynamic and static using normalized values
+                dynamic_items = [item for item in sorted_list if str(item).strip().lower() not in static_set]
+                static_items = [item for item in sorted_list if str(item).strip().lower() in static_set]
+                record[f"_{special_key}_dynamic"] = dynamic_items
+                record[f"_{special_key}_static"] = static_items
+                if len(dynamic_items) > max_dynamic:
+                    max_dynamic = len(dynamic_items)
+                if len(static_items) > max_static:
+                    max_static = len(static_items)
+            # Create fixed columns for this special key
+            for record in flattened_data:
+                dynamic_items = record.get(f"_{special_key}_dynamic", [])
+                static_items = record.get(f"_{special_key}_static", [])
+                # Dynamic columns: names like "<special_key>_1", "<special_key>_2", ...
+                for i in range(max_dynamic):
+                    col_name = f"{special_key}_{i+1}"
+                    record[col_name] = dynamic_items[i] if i < len(dynamic_items) else ""
+                # Static columns: continue numbering after dynamic columns
+                for j in range(max_static):
+                    col_name = f"{special_key}_{max_dynamic + j + 1}"
+                    record[col_name] = static_items[j] if j < len(static_items) else ""
+                # Remove temporary keys for this special key
+                for temp_key in [f"sorted_{special_key}", f"_{special_key}_dynamic", f"_{special_key}_static"]:
+                    record.pop(temp_key, None)
+        # ---------------------------------------------------------------------
 
-        # Replace any remaining empty or missing values with "N/A"
+        df = pd.DataFrame(flattened_data)
         df.fillna("N/A", inplace=True)
 
-        # Automatically generate the output file path
         output_file_path = stored_filename.replace(".json", ".xlsx")
-
-        # Save to Excel
         df.to_excel(output_file_path, index=False)
 
-        # Notify the user of success
         messagebox.showinfo("Success", f"Excel file created successfully at: {output_file_path}")
         status_label.config(text=f"Excel file saved: {output_file_path}", fg="green")
-
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred while converting to Excel:\n{e}")
 
 # Function to open the URL when clicking on the info label
 def open_url(event=None):
-    url = "https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Search-Detection-v1.py"
+    url = "https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Detection-Exporter-API-2.5-v1.py"
     webbrowser.open(url)
 
-# GUI Setup
+# ------------------------- GUI Setup -------------------------
 root = tk.Tk()
-root.title("Vectra Detection Exporter API 2.5 v1 by alReaperz")
+root.title("Vectra Detection Exporter API 2.5 v2 by alReaperz")
 
-# Create a frame for the main content (inputs and buttons)
 content_frame = tk.Frame(root)
 content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -193,22 +245,17 @@ tk.Label(content_frame, text="End Time (YYYY-MM-DD HH:MM):").grid(row=3, column=
 end_time_entry = tk.Entry(content_frame, width=50)
 end_time_entry.grid(row=3, column=1, padx=10, pady=5)
 
-# Add submit button
 submit_button = tk.Button(content_frame, text="Run Query", command=run_query)
 submit_button.grid(row=4, column=0, columnspan=2, pady=10)
 
-# Add a button for flattening the JSON to Excel
 flatten_button = tk.Button(content_frame, text="Flatten to Excel", command=flatten_json_to_excel)
 flatten_button.grid(row=5, column=0, columnspan=2, pady=10)
 
-# Add a status label to display processing status
 status_label = tk.Label(content_frame, text="Waiting for input...", fg="black")
 status_label.grid(row=6, column=0, columnspan=2, pady=10)
 
-# Create a clickable info label in the bottom-right corner of the window
 info_label = tk.Label(root, text="?", fg="blue", cursor="hand2", font=("Arial", 12, "bold"))
 info_label.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
 info_label.bind("<Button-1>", open_url)
 
-# Start the GUI event loop
 root.mainloop()
