@@ -48,7 +48,7 @@ Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false | Out
 
 # Determine the directory of the script (works in PS5 and PS7)
 $ScriptDirectory = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
-$LogFile = Join-Path -Path $ScriptDirectory -ChildPath "CloneNet.log"
+$LogFile = Join-Path -Path $ScriptDirectory -ChildPath "clonenet.log"
 
 # Logging function using UTC datetime stamps (with trailing "Z")
 function Write-Log {
@@ -166,4 +166,7 @@ finally {
     catch {
         Write-Log "Error disconnecting from target host: $_" "WARNING"
     }
+    
+    # Final note with attribution
+    Write-Log "Script by alReaperz. View on Github: https://github.com/alReaperz/KaizenKit"
 }
