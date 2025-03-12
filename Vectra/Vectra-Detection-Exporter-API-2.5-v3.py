@@ -1,3 +1,18 @@
+"""
+Vectra Detection Exporter API 2.5 v3 by alReaperz
+
+Summary:
+- Provides a GUI tool to query the Vectra Detection API.
+- Accepts user inputs: Vectra Brain FQDN, API token, start/end time (local time converted to UTC), and detection categories.
+- Constructs a query string and retrieves detection data from the API.
+- Saves the JSON output to the user's Downloads folder with a unique filename.
+- Flattens the JSON data into a structured Excel file with fixed columns for special keys (e.g., tags).
+- Includes an info label that opens the GitHub repository for more details.
+
+Requirements:
+- Python modules: os, ssl, requests, datetime, pytz, tkinter, pandas, json, webbrowser, threading, urllib.parse
+"""
+
 import os
 import ssl
 import requests
