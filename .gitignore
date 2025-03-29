@@ -169,3 +169,16 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+#Xtra
+*.exe
+*.yml
+
+# SSH keys
+id_rsa
+id_rsa.pub
+*.pem
+*.key
+*.pub
+*.ssh
+*.der
