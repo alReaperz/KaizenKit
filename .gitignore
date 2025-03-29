@@ -170,15 +170,22 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-#Xtra
-*.exe
-*.yml
-
-# SSH keys
-id_rsa
-id_rsa.pub
+# Ignore all private keys and certs
 *.pem
 *.key
 *.pub
-*.ssh
 *.der
+id_*
+
+# Ignore hidden ssh/config folders
+.ssh/
+*.ssh
+
+# Custom key or credentials folders
+keys/
+secrets/
+creds/
+
+#Xtra
+*.exe
+*.yml
