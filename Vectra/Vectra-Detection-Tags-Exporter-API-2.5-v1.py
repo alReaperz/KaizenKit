@@ -348,7 +348,7 @@ def threaded_flatten():
 
 def open_url(event=None):
     webbrowser.open(
-        'https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra%20Detection%20Tags%20Exporter%20Api%202.5%20v1.py'
+        'https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Detection-Tags-Exporter-API-2.5-v1.py'
     )
 
 
