@@ -181,6 +181,28 @@ id_*
 .ssh/
 *.ssh
 
+# Buildozer build output
+.buildozer/
+bin/
+*.apk
+*.aab
+*.keystore
+
+# Gradle/Android artifacts (in case you customize anything)
+.gradle/
+local.properties
+*.iml
+*.log
+
+# Android Studio / JetBrains related (if ever used)
+.idea/
+*.iws
+*.ipr
+*.jks
+
+# Misc
+__pycache__/
+
 # Custom key or credentials folders
 keys/
 secrets/
