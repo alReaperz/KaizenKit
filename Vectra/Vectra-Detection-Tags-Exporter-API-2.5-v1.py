@@ -75,7 +75,7 @@ BATCH_SIZE = 10            # Number of IDs per API call batch
 # Keys to flatten
 special_expand_keys = ['tags']
 special_static_values = { 'tags': {'false positive', 'true positive', ''} }
-flatten_keys = ["id", "state",] + special_expand_keys
+flatten_keys = ["id", "state"] + special_expand_keys
 
 
 # ------------------------- Custom HTTPS Adapter ------------------------- #
