@@ -174,7 +174,7 @@ def threaded_query(): threading.Thread(target=run_query).start()
 def threaded_flatten(): threading.Thread(target=flatten_to_excel).start()
 
 def open_url(evt=None):
-    webbrowser.open("https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Detection-Exporter-API-2.5-v3.py")
+    webbrowser.open("https://github.com/alReaperz/KaizenKit/blob/main/Vectra/Vectra-Detection-Created-Time-Exporter-API-2.5.py")
 
 # GUI Setup
 def main():
