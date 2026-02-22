@@ -193,6 +193,8 @@ bin/
 local.properties
 *.iml
 *.log
+*.log.*
+*.hprof
 
 # Android Studio / JetBrains related (if ever used)
 .idea/
@@ -203,11 +205,22 @@ local.properties
 # Misc
 __pycache__/
 
-# Custom key or credentials folders
+# Custom folders
 keys/
 secrets/
 creds/
+configs/
+data/
+logs/
 
 #Xtra
 *.exe
 *.yml
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.zip
+*.tar.gz
+*.7z
+*.log
